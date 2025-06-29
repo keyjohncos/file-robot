@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -8,9 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Upload, Download, FileText, Search, AlertCircle, CheckCircle2, FolderOpen, File, Moon } from 'lucide-react'
+import { Download, FileText, Search, AlertCircle, CheckCircle2 } from 'lucide-react'
 import JSZip from 'jszip'
 import { ThemeToggle } from '@/components/theme-toggle'
+import LanguageToggle from '@/components/language-toggle'
+import FileUpload from '@/components/FileUpload'
+import { Language, translations, formatMessage, Translations } from '@/lib/i18n'
 
 interface FileItem {
   file: File
@@ -26,53 +29,38 @@ interface MatchedFile extends FileItem {
 }
 
 const FILE_TYPES = [
-  { value: 'all', label: 'All types' },
-  { value: 'pdf', label: 'PDF (.pdf)' },
-  { value: 'jpg,jpeg', label: 'JPEG (.jpg, .jpeg)' },
-  { value: 'png', label: 'PNG (.png)' },
-  { value: 'xlsx,xls', label: 'Excel (.xlsx, .xls)' },
-  { value: 'docx,doc', label: 'Word (.docx, .doc)' },
-  { value: 'pptx,ppt', label: 'PowerPoint (.pptx, .ppt)' },
-  { value: 'txt', label: 'Text (.txt)' },
-  { value: 'csv', label: 'CSV (.csv)' }
+  { value: 'all', labelKey: 'allTypes' },
+  { value: 'pdf', labelKey: 'pdf' },
+  { value: 'jpg,jpeg', labelKey: 'jpeg' },
+  { value: 'png', labelKey: 'png' },
+  { value: 'xlsx,xls', labelKey: 'excel' },
+  { value: 'docx,doc', labelKey: 'word' },
+  { value: 'pptx,ppt', labelKey: 'powerpoint' },
+  { value: 'txt', labelKey: 'text' },
+  { value: 'csv', labelKey: 'csv' }
 ]
 
-// TypeScript declarations for webkitdirectory and FileSystem API
-declare module 'react' {
-  interface InputHTMLAttributes<T> extends AriaAttributes, DOMAttributes<T> {
-    webkitdirectory?: string
-  }
-}
-
-// FileSystem API types
-interface FileSystemEntry {
-  isFile: boolean
-  isDirectory: boolean
-  name: string
-  file?(callback: (file: File) => void): void
-  createReader?(): FileSystemDirectoryReader
-}
-
-interface FileSystemDirectoryReader {
-  readEntries(callback: (entries: FileSystemEntry[]) => void): void
-}
-
 export default function FileMatcherPro() {
+  const [language, setLanguage] = useState<Language>(() => {
+    // Try to get language from localStorage, default to 'en'
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('file-matcher-language')
+      return (saved as Language) || 'en'
+    }
+    return 'en'
+  })
   const [files, setFiles] = useState<FileItem[]>([])
   const [productCodes, setProductCodes] = useState('')
   const [selectedFileTypes, setSelectedFileTypes] = useState('all')
   const [matchedFiles, setMatchedFiles] = useState<MatchedFile[]>([])
   const [unmatchedCodes, setUnmatchedCodes] = useState<string[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
-  const [isDragOver, setIsDragOver] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [progress, setProgress] = useState(0)
   const [isDownloading, setIsDownloading] = useState(false)
 
-  const dropAreaRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const folderInputRef = useRef<HTMLInputElement>(null)
+  const t = translations[language]
 
   // Clear messages after a delay
   useEffect(() => {
@@ -85,173 +73,19 @@ export default function FileMatcherPro() {
     }
   }, [error, success])
 
-  // Prevent default drag behaviors
-  useEffect(() => {
-    const preventDefault = (e: DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-    }
-
-    const handleDragEnter = (e: DragEvent) => {
-      preventDefault(e)
-      setIsDragOver(true)
-    }
-
-    const handleDragLeave = (e: DragEvent) => {
-      preventDefault(e)
-      // Only set isDragOver to false if we're leaving the drop area completely
-      if (!dropAreaRef.current?.contains(e.relatedTarget as Node)) {
-        setIsDragOver(false)
-      }
-    }
-
-    const handleDrop = (e: DragEvent) => {
-      preventDefault(e)
-      setIsDragOver(false)
-
-      if (e.dataTransfer?.items) {
-        handleFilesDrop(e.dataTransfer.items)
-      }
-    }
-
-    const dropArea = dropAreaRef.current
-    if (dropArea) {
-      dropArea.addEventListener('dragenter', handleDragEnter)
-      dropArea.addEventListener('dragover', preventDefault)
-      dropArea.addEventListener('dragleave', handleDragLeave)
-      dropArea.addEventListener('drop', handleDrop)
-    }
-
-    return () => {
-      if (dropArea) {
-        dropArea.removeEventListener('dragenter', handleDragEnter)
-        dropArea.removeEventListener('dragover', preventDefault)
-        dropArea.removeEventListener('dragleave', handleDragLeave)
-        dropArea.removeEventListener('drop', handleDrop)
-      }
-    }
-  }, [])
-
-  const processEntry = async (entry: FileSystemEntry, path = ''): Promise<FileItem[]> => {
-    return new Promise((resolve) => {
-      if (entry.isFile && entry.file) {
-        entry.file((file: File) => {
-          const fullPath = path ? `${path}/${file.name}` : file.name
-          resolve([{
-            file,
-            path: fullPath,
-            name: file.name,
-            size: file.size,
-            type: file.type || getFileTypeFromName(file.name)
-          }])
-        })
-      } else if (entry.isDirectory && entry.createReader) {
-        const dirReader = entry.createReader()
-        const allFiles: FileItem[] = []
-
-        const readEntries = () => {
-          dirReader.readEntries(async (entries: FileSystemEntry[]) => {
-            if (entries.length === 0) {
-              resolve(allFiles)
-              return
-            }
-
-            for (const childEntry of entries) {
-              const childPath = path ? `${path}/${entry.name}` : entry.name
-              const childFiles = await processEntry(childEntry, childPath)
-              allFiles.push(...childFiles)
-            }
-            readEntries() // Continue reading if there are more entries
-          })
-        }
-        readEntries()
-      } else {
-        resolve([])
-      }
-    })
-  }
-
-  const getFileTypeFromName = (fileName: string): string => {
-    const ext = fileName.split('.').pop()?.toLowerCase()
-    const mimeTypes: Record<string, string> = {
-      'pdf': 'application/pdf',
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'xls': 'application/vnd.ms-excel',
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'doc': 'application/msword',
-      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'ppt': 'application/vnd.ms-powerpoint',
-      'txt': 'text/plain',
-      'csv': 'text/csv'
-    }
-    return mimeTypes[ext || ''] || 'application/octet-stream'
-  }
-
-  const handleFilesDrop = async (items: DataTransferItemList) => {
-    setIsProcessing(true)
-    setError('')
-    setProgress(0)
-
-    try {
-      const allFiles: FileItem[] = []
-      const entries = Array.from(items).map(item => item.webkitGetAsEntry()).filter(Boolean)
-
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i]
-        if (entry) {
-          const files = await processEntry(entry)
-          allFiles.push(...files)
-        }
-        setProgress(((i + 1) / entries.length) * 100)
-      }
-
-      setFiles(allFiles)
-      setSuccess(`Successfully loaded ${allFiles.length} files`)
-    } catch (err) {
-      setError('Error processing files. Please try again.')
-      console.error('File processing error:', err)
-    } finally {
-      setIsProcessing(false)
-      setProgress(0)
-    }
-  }
-
-  const handleFileInput = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = event.target.files
-    if (!selectedFiles) return
-
-    setIsProcessing(true)
-    setError('')
-
-    try {
-      const fileItems: FileItem[] = Array.from(selectedFiles).map(file => ({
-        file,
-        path: file.name,
-        name: file.name,
-        size: file.size,
-        type: file.type || getFileTypeFromName(file.name)
-      }))
-
-      setFiles(fileItems)
-      setSuccess(`Successfully loaded ${fileItems.length} files`)
-    } catch (err) {
-      setError('Error loading files. Please try again.')
-    } finally {
-      setIsProcessing(false)
-    }
+  const handleFilesLoaded = (loadedFiles: FileItem[]) => {
+    setFiles(loadedFiles)
+    setSuccess(formatMessage(t.successfullyLoadedFiles, { count: loadedFiles.length }))
   }
 
   const matchFiles = useCallback(() => {
     if (files.length === 0) {
-      setError('Please upload files first')
+      setError(t.pleaseUploadFiles)
       return
     }
 
     if (!productCodes.trim()) {
-      setError('Please enter product codes to match')
+      setError(t.pleaseEnterCodes)
       return
     }
 
@@ -266,7 +100,7 @@ export default function FileMatcherPro() {
         .filter(code => code.length > 0)
 
       if (codes.length === 0) {
-        setError('Please enter valid product codes')
+        setError(t.pleaseEnterValidCodes)
         setIsProcessing(false)
         return
       }
@@ -306,21 +140,21 @@ export default function FileMatcherPro() {
       setUnmatchedCodes(unmatched)
 
       if (matched.length === 0) {
-        setError(`No files matched the given product codes. Searched in ${filteredFiles.length} files.`)
+        setError(formatMessage(t.noFilesMatched, { count: filteredFiles.length }))
       } else {
-        setSuccess(`Found ${matched.length} matching files`)
+        setSuccess(formatMessage(t.foundMatchingFiles, { count: matched.length }))
       }
     } catch (err) {
-      setError('Error matching files. Please try again.')
+      setError(t.errorMatchingFiles)
       console.error('Matching error:', err)
     } finally {
       setIsProcessing(false)
     }
-  }, [files, productCodes, selectedFileTypes])
+  }, [files, productCodes, selectedFileTypes, t])
 
   const downloadMatchedFiles = async () => {
     if (matchedFiles.length === 0) {
-      setError('No matched files to download')
+      setError(t.noMatchedFilesToDownload)
       return
     }
 
@@ -352,9 +186,9 @@ export default function FileMatcherPro() {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
 
-      setSuccess(`Downloaded ${matchedFiles.length} files as ZIP`)
+      setSuccess(formatMessage(t.downloadedFilesAsZip, { count: matchedFiles.length }))
     } catch (err) {
-      setError('Error creating ZIP file. Please try again.')
+      setError(t.errorCreatingZip)
       console.error('ZIP creation error:', err)
     } finally {
       setIsDownloading(false)
@@ -370,17 +204,48 @@ export default function FileMatcherPro() {
     return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`
   }
 
+  // Save language preference to localStorage
+  const handleLanguageChange = (newLanguage: Language) => {
+    setLanguage(newLanguage)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('file-matcher-language', newLanguage)
+    }
+  }
+
   return (
     <div className="container mx-auto p-6 max-w-6xl">
+      {/* 顶部 Banner */}
+      <div className="mb-8 w-full">
+        {language === 'zh' ? (
+          <img
+            src="/banner-cn.jpg"
+            alt="一拉一放，轻松搞定多文件复制"
+            className="w-full rounded-lg object-cover"
+          />
+        ) : (
+          <img
+            src="/banner-en.jpg"
+            alt="Drag one time, copy a lot of files"
+            className="w-full rounded-lg object-cover"
+          />
+        )}
+      </div>
+
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">File Matcher Pro</h1>
+            <h1 className="text-3xl font-bold mb-2">{t.title}</h1>
             <p className="text-muted-foreground">
-              Drop files or folders, enter product codes, and download matched files as a ZIP archive.
+              {t.subtitle}
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageToggle 
+              currentLanguage={language}
+              onLanguageChange={handleLanguageChange}
+            />
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
@@ -404,119 +269,39 @@ export default function FileMatcherPro() {
         <div className="mb-6">
           <Progress value={progress} className="w-full" />
           <p className="text-sm text-muted-foreground mt-2">
-            {isDownloading ? 'Creating ZIP file...' : 'Processing files...'}
+            {isDownloading ? t.creatingZipFile : t.processingFiles}
           </p>
         </div>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* File Upload Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              File Upload
-            </CardTitle>
-            <CardDescription>
-              Drag and drop files or folders, or use the buttons below
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Drag and Drop Area */}
-            <div
-              ref={dropAreaRef}
-              className={`
-                border-2 border-dashed rounded-lg p-8 text-center transition-colors
-                ${isDragOver
-                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300'
-                  : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
-                }
-                ${isProcessing ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
-              `}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <div className="flex flex-col items-center gap-4">
-                <div className={`p-4 rounded-full ${isDragOver ? 'bg-blue-100 dark:bg-blue-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                  <Upload className={`h-8 w-8 ${isDragOver ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`} />
-                </div>
-                <div>
-                  <p className="text-lg font-medium">Drop files or folders here</p>
-                  <p className="text-sm text-muted-foreground">
-                    or click to browse files
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* File Input Buttons */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isProcessing}
-                className="flex-1"
-              >
-                <File className="h-4 w-4 mr-2" />
-                Select Files
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => folderInputRef.current?.click()}
-                disabled={isProcessing}
-                className="flex-1"
-              >
-                <FolderOpen className="h-4 w-4 mr-2" />
-                Select Folder
-              </Button>
-            </div>
-
-            {/* Hidden File Inputs */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              onChange={handleFileInput}
-              className="hidden"
-            />
-            <input
-              ref={folderInputRef}
-              type="file"
-              webkitdirectory=""
-              multiple
-              onChange={handleFileInput}
-              className="hidden"
-            />
-
-            {/* File Count Display */}
-            {files.length > 0 && (
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-sm font-medium">
-                  📁 {files.length} files loaded
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <FileUpload 
+          onFilesLoaded={handleFilesLoaded}
+          isProcessing={isProcessing}
+          filesCount={files.length}
+          t={t}
+        />
 
         {/* Search Configuration */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5" />
-              Search Configuration
+              {t.searchConfiguration}
             </CardTitle>
             <CardDescription>
-              Configure product codes and file filters
+              {t.searchConfigurationDescription}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Product Codes Input */}
             <div>
-              <label className="text-sm font-medium mb-2 block">
-                Product codes to match (one per line or comma-separated)
+              <label className="text-lg font-medium mb-2 block">
+                {t.productCodesLabel}
               </label>
               <Textarea
-                placeholder="DCA-4901&#10;DCA-493&#10;DCA-3936, DCA-382W"
+                placeholder={t.productCodesPlaceholder}
                 value={productCodes}
                 onChange={(e) => setProductCodes(e.target.value)}
                 className="min-h-32 resize-y"
@@ -525,8 +310,8 @@ export default function FileMatcherPro() {
 
             {/* File Type Filter */}
             <div>
-              <label className="text-sm font-medium mb-2 block">
-                File type filter (optional)
+              <label className="text-lg font-medium mb-2 block">
+                {t.fileTypeFilter}
               </label>
               <Select value={selectedFileTypes} onValueChange={setSelectedFileTypes}>
                 <SelectTrigger>
@@ -535,7 +320,7 @@ export default function FileMatcherPro() {
                 <SelectContent>
                   {FILE_TYPES.map(type => (
                     <SelectItem key={type.value} value={type.value}>
-                      {type.label}
+                      {t[type.labelKey as keyof Translations]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -548,7 +333,7 @@ export default function FileMatcherPro() {
               disabled={isProcessing || files.length === 0 || !productCodes.trim()}
               className="w-full"
             >
-              {isProcessing ? 'Processing...' : 'Match Files'}
+              {isProcessing ? t.processing : t.matchFiles}
             </Button>
           </CardContent>
         </Card>
@@ -563,9 +348,9 @@ export default function FileMatcherPro() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Matched Files ({matchedFiles.length})</CardTitle>
+                    <CardTitle>{t.matchedFiles} ({matchedFiles.length})</CardTitle>
                     <CardDescription>
-                      Files containing the specified product codes
+                      {t.matchedFilesDescription}
                     </CardDescription>
                   </div>
                   <Button
@@ -574,7 +359,7 @@ export default function FileMatcherPro() {
                     className="flex items-center gap-2"
                   >
                     <Download className="h-4 w-4" />
-                    {isDownloading ? 'Creating ZIP...' : 'Download ZIP'}
+                    {isDownloading ? t.creatingZip : t.downloadZip}
                   </Button>
                 </div>
               </CardHeader>
@@ -612,10 +397,10 @@ export default function FileMatcherPro() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertCircle className="h-5 w-5 text-orange-500" />
-                  Unmatched Product Codes ({unmatchedCodes.length})
+                  {t.unmatchedCodes} ({unmatchedCodes.length})
                 </CardTitle>
                 <CardDescription>
-                  These product codes were not found in any uploaded files
+                  {t.unmatchedCodesDescription}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -631,6 +416,13 @@ export default function FileMatcherPro() {
           )}
         </div>
       )}
+
+      {/* Tool Footer */}
+      <div className="mt-10 leading-relaxed text-muted-foreground whitespace-pre-line" style={{ fontSize: '22px' }}>
+        {t.toolFooter}
+      </div>
     </div>
   )
 }
+
+
