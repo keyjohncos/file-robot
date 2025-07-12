@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -51,6 +51,7 @@ export default function TypingPracticePage() {
   const [encouragementMessage, setEncouragementMessage] = useState<string>('')
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false)
   const [enterPressCount, setEnterPressCount] = useState<number>(0)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const t = translations[language]
 
@@ -106,6 +107,12 @@ export default function TypingPracticePage() {
       console.error('Error fetching word:', error);
     } finally {
       setIsLoading(false);
+      // 自动聚焦到输入框
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
     }
   };
 
@@ -237,11 +244,19 @@ export default function TypingPracticePage() {
     fetchNewWord();
   }, []);
 
+  // 当加载完成时自动聚焦到输入框
+  useEffect(() => {
+    if (!isLoading && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isLoading]);
+
   // 渲染带错误标记的输入框
   const renderInputWithErrors = () => {
     if (!validationResult || validationResult.isCorrect) {
       return (
         <input
+          ref={inputRef}
           type="text"
           value={userInput}
           onChange={handleInputChange}
