@@ -80,6 +80,8 @@ export default function TypingPracticePage() {
     setShowExplanation(false);
     setEnterPressCount(0); // 重置 Enter 键计数
     
+    let fetchedWord = '';
+    
     try {
       const url = selectedFile === 'all' 
         ? '/api/words' 
@@ -89,6 +91,7 @@ export default function TypingPracticePage() {
       const data = await response.json();
       
       if (data.success) {
+        fetchedWord = data.word;
         setCurrentWord(data.word);
         setCurrentWordInfo({
           word: data.word,
@@ -243,6 +246,16 @@ export default function TypingPracticePage() {
     fetchAvailableFiles();
     fetchNewWord();
   }, []);
+
+  // 当当前单词改变时自动播放发音
+  useEffect(() => {
+    if (currentWord && !isLoading) {
+      // 延迟一点时间播放，确保页面已经渲染完成
+      setTimeout(() => {
+        speakWord(currentWord);
+      }, 500);
+    }
+  }, [currentWord, isLoading]);
 
   // 当加载完成时自动聚焦到输入框
   useEffect(() => {
