@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 
 // 模拟单词数据（支持标准格式）
-const mockWords = [
+const mockWords: WordData[] = [
   {
     word: 'review',
     pronunciation: '/rɪˈvjuː/',
@@ -82,9 +82,22 @@ async function getAvailableFiles() {
   }
 }
 
+// 定义单词类型
+interface WordData {
+  word: string;
+  pronunciation: string;
+  partOfSpeech: string;
+  definition: string;
+  phrases: string[];
+  example: string;
+  wordForms: string[];
+  sourceFile: string;
+  pageNumber: number;
+}
+
 // 解析标准格式的单词数据
-function parseWordData(text: string) {
-  const words: any[] = [];
+function parseWordData(text: string): WordData[] {
+  const words: WordData[] = [];
   const lines = text.split('\n').filter(line => line.trim());
 
   for (let i = 0; i < lines.length; i++) {
@@ -95,10 +108,10 @@ function parseWordData(text: string) {
       const word = wordMatch[1];
       const pronunciation = wordMatch[2];
       const definition = wordMatch[3].trim();
-      let partOfSpeech = '';
-      let phrases: string[] = [];
+      const partOfSpeech = '';
+      const phrases: string[] = [];
       let example = '';
-      let wordForms: string[] = [];
+      const wordForms: string[] = [];
       let j = i + 1;
       while (j < lines.length) {
         const nextLine = lines[j].trim();
@@ -148,7 +161,7 @@ function parseWordData(text: string) {
 }
 
 // 从文件中提取单词
-async function extractWordsFromFile(filePath: string) {
+async function extractWordsFromFile(filePath: string): Promise<WordData[]> {
   try {
     const fileExtension = path.extname(filePath).toLowerCase();
     
@@ -181,7 +194,7 @@ async function extractWordsFromFile(filePath: string) {
 }
 
 // 获取指定单词的详细信息
-async function getWordInfo(targetWord: string, selectedFile?: string) {
+async function getWordInfo(targetWord: string, selectedFile?: string): Promise<WordData> {
   try {
     if (selectedFile && selectedFile !== 'all') {
       // 从指定文件获取单词
@@ -210,7 +223,7 @@ async function getWordInfo(targetWord: string, selectedFile?: string) {
 }
 
 // 获取随机单词
-async function getRandomWord(selectedFile?: string) {
+async function getRandomWord(selectedFile?: string): Promise<WordData> {
   try {
     if (selectedFile && selectedFile !== 'all') {
       // 从指定文件获取单词
