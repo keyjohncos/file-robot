@@ -82,6 +82,61 @@ async function getAvailableFiles() {
   }
 }
 
+// 获取指定单元的单词总数
+async function getUnitWordCount(selectedFile?: string): Promise<number> {
+  try {
+    if (selectedFile && selectedFile !== 'all') {
+      // 从指定文件获取单词
+      const dataDir = path.join(process.cwd(), 'data', 'word-documents');
+      const filePath = path.join(dataDir, selectedFile);
+      
+      if (fs.existsSync(filePath)) {
+        const words = await extractWordsFromFile(filePath);
+        return words.length;
+      }
+    }
+    
+    // 如果是"all"或文件不存在，返回模拟数据的总数
+    return mockWords.length;
+  } catch (error) {
+    console.error('Error getting unit word count:', error);
+    return mockWords.length;
+  }
+}
+
+// 获取所有单元的单词统计
+async function getAllUnitsStats(): Promise<{ [key: string]: number }> {
+  try {
+    const stats: { [key: string]: number } = {};
+    
+    // 获取所有可用文件
+    const filesResult = await getAvailableFiles();
+    if (filesResult.success) {
+      const dataDir = path.join(process.cwd(), 'data', 'word-documents');
+      
+      // 为每个文件获取单词数量
+      for (const file of filesResult.files) {
+        const filePath = path.join(dataDir, file);
+        if (fs.existsSync(filePath)) {
+          const words = await extractWordsFromFile(filePath);
+          stats[file] = words.length;
+        } else {
+          // 如果文件不存在，使用模拟数据
+          stats[file] = mockWords.length;
+        }
+      }
+    }
+    
+    // 添加"all"的统计
+    stats['all'] = mockWords.length * 4; // 假设有4个单元
+    
+    return stats;
+  } catch (error) {
+    console.error('Error getting all units stats:', error);
+    return { 'all': mockWords.length * 4 };
+  }
+}
+
 // 定义单词类型
 interface WordData {
   word: string;
@@ -339,10 +394,31 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function PUT() {
+export async function PUT(request: NextRequest) {
   try {
-    const files = await getAvailableFiles();
-    return NextResponse.json(files);
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+    
+    if (action === 'stats') {
+      // 获取所有单元的统计信息
+      const stats = await getAllUnitsStats();
+      return NextResponse.json({
+        success: true,
+        stats
+      });
+    } else if (action === 'unitCount') {
+      // 获取指定单元的单词数量
+      const file = searchParams.get('file');
+      const count = await getUnitWordCount(file || undefined);
+      return NextResponse.json({
+        success: true,
+        count
+      });
+    } else {
+      // 默认行为：获取可用文件列表
+      const files = await getAvailableFiles();
+      return NextResponse.json(files);
+    }
   } catch (error) {
     console.error('Error in PUT /api/words:', error);
     return NextResponse.json(
