@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { PDFExtract } from 'pdf.js-extract';
+import pdf from 'pdf-parse';
 
 interface ProductResult {
   fileName: string;
@@ -17,9 +17,9 @@ interface ChatMessage {
 
 // AI配置
 const AI_CONFIG = {
-  apiKey: 'sk-WM1F3X2MQqJdZN5DA076Eb4dD1E74bD0Bf36060114E692C3',
-  baseURL: 'https://aihubmix.com/v1',
-  model: 'gpt-4.1-nano'
+  apiKey: process.env.AI_API_KEY || '',
+  baseURL: process.env.AI_BASE_URL || 'https://aihubmix.com/v1',
+  model: process.env.AI_MODEL || 'gpt-4.1-nano'
 };
 
 // 从文件名提取产品代码
@@ -31,9 +31,9 @@ function extractProductCode(fileName: string): string {
 // 从PDF文件提取文本
 async function extractTextFromPDF(filePath: string): Promise<string> {
   try {
-    const pdfExtract = new PDFExtract();
-    const data = await pdfExtract.extract(filePath);
-    return data.pages.map((page: any) => page.content.map((item: any) => item.str).join(' ')).join(' ');
+    const dataBuffer = fs.readFileSync(filePath);
+    const data = await pdf(dataBuffer);
+    return data.text;
   } catch (error) {
     console.error('Error extracting PDF text:', error);
     return '';
