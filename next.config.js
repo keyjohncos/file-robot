@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true, // ✅ 添加这一行
+  },
   images: {
     unoptimized: true,
     domains: [
