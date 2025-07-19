@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileSearch, Keyboard, ArrowRight, Search } from 'lucide-react'
+import { FileSearch, Keyboard, ArrowRight, BookOpen } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import LanguageToggle from '@/components/language-toggle'
 import { Language, translations } from '@/lib/i18n'
@@ -31,8 +31,8 @@ export default function HomePage() {
       window.location.href = '/file-matcher'
     } else if (feature === 'typing-practice') {
       window.location.href = '/typing-practice'
-    } else if (feature === 'find-products') {
-      window.location.href = '/find-products'
+    } else if (feature === 'chinese-practice') {
+      window.location.href = '/chinese-practice'
     }
   }
 
@@ -66,7 +66,7 @@ export default function HomePage() {
             Welcome to use File Robot
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Your comprehensive platform for file management, English learning, and AI-powered product search
+            Your comprehensive platform for file management, English learning, and Chinese character practice
           </p>
         </div>
 
@@ -130,30 +130,30 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          {/* Find Products Feature */}
+          {/* Chinese Practice Feature */}
           <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer"
-                onClick={() => navigateToFeature('find-products')}>
+                onClick={() => navigateToFeature('chinese-practice')}>
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mb-4">
-                <Search className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+              <div className="mx-auto w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mb-4">
+                <BookOpen className="w-8 h-8 text-orange-600 dark:text-orange-400" />
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
-                Find Products
+                Chinese Practice
               </CardTitle>
               <CardDescription className="text-base text-gray-600 dark:text-gray-300">
-                AI产品搜索
+                汉字练习
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                AI-powered product search tool that analyzes PDF documents to find 
-                matching products based on your requirements.
+                Interactive Chinese character practice tool with Excel file support, 
+                random character selection, and progress tracking.
               </p>
               <Button 
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={() => navigateToFeature('find-products')}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={() => navigateToFeature('chinese-practice')}
               >
-                Search Products
+                Start Practice
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </CardContent>
@@ -189,14 +189,14 @@ export default function HomePage() {
               </p>
             </div>
             <div className="text-center">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-6 h-6 text-orange-600 dark:text-orange-400" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                AI Product Search
+                Chinese Character Practice
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Find products using natural language with AI-powered analysis
+                Practice Chinese characters with Excel file support and progress tracking
               </p>
             </div>
           </div>
@@ -214,5 +214,3 @@ export default function HomePage() {
     </div>
   )
 }
-
-
