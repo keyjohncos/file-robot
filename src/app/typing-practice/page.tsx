@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, CheckCircle2, ArrowLeft, Download, Eye } from 'lucide-react'
+import { AlertCircle, CheckCircle2, ArrowLeft, Download, Eye, Volume2, Type } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import LanguageToggle from '@/components/language-toggle'
 import { Language, translations } from '@/lib/i18n'
@@ -33,7 +33,10 @@ interface InputHistory {
   userInput: string;
   isCorrect: boolean;
   timestamp: Date;
+  mode: 'typing' | 'dictation';
 }
+
+type PracticeMode = 'typing' | 'dictation';
 
 export default function TypingPracticePage() {
   const [language, setLanguage] = useState<Language>(() => {
@@ -44,6 +47,7 @@ export default function TypingPracticePage() {
     return 'en'
   })
 
+  const [practiceMode, setPracticeMode] = useState<PracticeMode>('typing')
   const [currentWord, setCurrentWord] = useState<string>('')
   const [userInput, setUserInput] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -209,6 +213,18 @@ export default function TypingPracticePage() {
     }
   };
 
+  // 自动播放发音
+  useEffect(() => {
+    if (currentWord && !isLoading) {
+      // 延迟一点时间自动播放发音，让页面先渲染完成
+      const timer = setTimeout(() => {
+        speakWord(currentWord);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [currentWord, isLoading]);
+
   // 验证用户输入
   const validateInput = async () => {
     if (!userInput.trim()) return;
@@ -242,104 +258,86 @@ export default function TypingPracticePage() {
           word: currentWord,
           userInput: userInput.trim(),
           isCorrect: data.isCorrect,
-          timestamp: new Date()
+          timestamp: new Date(),
+          mode: practiceMode
         };
         setInputHistory(prev => [...prev, historyEntry]);
         
         if (data.isCorrect) {
           setWordInfo(data.wordInfo);
-          setShowExplanation(true);
-          
-          const newCount = validatedCount + 1;
-          setValidatedCount(newCount);
-          
-          // 更新单元完成单词跟踪
-          setUnitCompletedWords(prev => {
-            const newUnitCompleted = { ...prev };
-            if (!newUnitCompleted[selectedFile]) {
-              newUnitCompleted[selectedFile] = new Set();
-            }
-            newUnitCompleted[selectedFile].add(currentWord.toLowerCase());
-            return newUnitCompleted;
-          });
-          
-          checkEncouragement(newCount);
+          setValidatedCount(prev => prev + 1);
+          checkEncouragement(validatedCount + 1);
         }
+        
+        // 显示解释
+        setShowExplanation(true);
+        
+        // 2秒后自动进入下一个单词
+        setTimeout(() => {
+          fetchNewWord();
+        }, 2000);
       }
     } catch (error) {
       console.error('Error validating input:', error);
     }
   };
 
-  // 检查激励消息
+  // 检查鼓励信息
   const checkEncouragement = (count: number) => {
-    if (count === 20) {
-      setEncouragementMessage('你好棒！完成了20个啦');
+    const messages = [
+      "太棒了！继续保持！",
+      "做得很好！你已经掌握了这个单词！",
+      "优秀！你的英语水平在不断提高！",
+      "完美！你已经连续答对了多个单词！",
+      "了不起！你的学习态度很棒！"
+    ];
+    
+    if (count % 5 === 0 && count > 0) {
+      const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+      setEncouragementMessage(randomMessage);
       setShowEncouragement(true);
-      setTimeout(() => setShowEncouragement(false), 5000);
-    } else if (count === 50) {
-      setEncouragementMessage('加油，如果按1元一个单词的话，你赚了50元了');
-      setShowEncouragement(true);
-      setTimeout(() => setShowEncouragement(false), 5000);
-    } else if (count === 100) {
-      setEncouragementMessage('不要这么努力呀，你同学快跟不上你了，去休息一下');
-      setShowEncouragement(true);
-      setTimeout(() => setShowEncouragement(false), 5000);
+      setTimeout(() => setShowEncouragement(false), 3000);
     }
   };
 
-  // 播放单词发音
+  // 发音功能
   const speakWord = (word: string) => {
     if ('speechSynthesis' in window) {
       setIsSpeaking(true);
-      
-      window.speechSynthesis.cancel();
-      
       const utterance = new SpeechSynthesisUtterance(word);
       utterance.lang = 'en-US';
       utterance.rate = 0.8;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-      
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-      };
-      
-      window.speechSynthesis.speak(utterance);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      speechSynthesis.speak(utterance);
     } else {
-      alert('您的浏览器不支持语音合成功能');
+      console.log('Speech synthesis not supported');
     }
   };
 
   // 处理输入变化
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setUserInput(value);
-    
+    setUserInput(e.target.value);
+    // 清除之前的验证结果
     if (validationResult) {
       setValidationResult(null);
-    }
-    
-    // 当用户开始输入时，重置 Enter 键计数
-    if (enterPressCount > 0) {
-      setEnterPressCount(0);
+      setShowExplanation(false);
     }
   };
 
-  // 处理回车键
+  // 处理键盘事件
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
+      setEnterPressCount(prev => prev + 1);
+      
       if (enterPressCount === 0) {
-        // 第一次按 Enter：验证
+        // 第一次按Enter，验证输入
         validateInput();
-        setEnterPressCount(1);
       } else {
-        // 第二次按 Enter：下一个单词
+        // 第二次按Enter，获取下一个单词
         fetchNewWord();
+        setEnterPressCount(0);
       }
     }
   };
@@ -347,273 +345,247 @@ export default function TypingPracticePage() {
   // 处理文件选择变化
   const handleFileChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedFile(e.target.value);
-    // 切换文件时重置已使用单词列表
-    setUsedWords(new Set());
+    setUsedWords(new Set()); // 重置已使用单词列表
   };
 
+  // 处理语言切换
   const handleLanguageChange = (newLanguage: Language) => {
-    setLanguage(newLanguage)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('file-matcher-language', newLanguage)
-    }
-  }
+    setLanguage(newLanguage);
+    localStorage.setItem('file-matcher-language', newLanguage);
+  };
 
   // 下载历史记录
   const downloadHistory = () => {
+    if (inputHistory.length === 0) return;
+    
     const csvContent = [
-      '单词,用户输入,是否正确,时间',
-      ...inputHistory.map(entry => 
-        `${entry.word},${entry.userInput},${entry.isCorrect ? '是' : '否'},${entry.timestamp.toLocaleString()}`
-      )
-    ].join('\n');
+      ['单词', '用户输入', '是否正确', '练习模式', '时间戳'],
+      ...inputHistory.map(entry => [
+        entry.word,
+        entry.userInput,
+        entry.isCorrect ? '正确' : '错误',
+        entry.mode === 'typing' ? '打字练习' : '听写练习',
+        entry.timestamp.toLocaleString()
+      ])
+    ].map(row => row.join(',')).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `typing-practice-history-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `typing_practice_history_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // 初始化打字练习
-  useEffect(() => {
-    fetchAvailableFiles();
-    fetchUnitStats();
-    fetchNewWord();
-  }, []);
-
-  // 当当前单词改变时自动播放发音
-  useEffect(() => {
-    if (currentWord && !isLoading) {
-      // 延迟一点时间播放，确保页面已经渲染完成
-      setTimeout(() => {
-        speakWord(currentWord);
-      }, 500);
-    }
-  }, [currentWord, isLoading]);
-
-  // 当加载完成时自动聚焦到输入框
-  useEffect(() => {
-    if (!isLoading && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [isLoading]);
-
-  // 当历史记录或选中文件改变时，更新当前单元完成数量
-  useEffect(() => {
-    if (selectedFile === 'all') {
-      // 如果是"all"，计算所有正确输入的单词数
-      const completed = inputHistory.filter(entry => entry.isCorrect).length;
-      setCurrentUnitCompleted(completed);
-    } else {
-      // 如果是特定单元，使用跟踪的完成单词数量
-      const unitCompleted = unitCompletedWords[selectedFile] || new Set();
-      setCurrentUnitCompleted(unitCompleted.size);
-    }
-  }, [inputHistory, selectedFile, unitCompletedWords]);
-
-  // 渲染带错误标记的输入框
+  // 渲染输入框和错误提示
   const renderInputWithErrors = () => {
-    if (!validationResult || validationResult.isCorrect) {
-      return (
-        <input
-          ref={inputRef}
-          type="text"
-          value={userInput}
-          onChange={handleInputChange}
-          onKeyPress={handleKeyPress}
-          placeholder="请输入单词..."
-          className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white"
-          disabled={isLoading}
-        />
-      );
-    }
-
-    const { errorPositions = [], correctWord = '' } = validationResult;
-    const inputArray = userInput.split('');
-    const correctArray = correctWord.split('');
-
     return (
-      <div className="w-full px-4 py-3 text-lg border-2 border-red-500 rounded-lg bg-white dark:bg-gray-800">
-        <div className="flex flex-wrap">
-          {inputArray.map((char, index) => {
-            const isError = errorPositions.includes(index);
-            const isCorrect = index < correctArray.length && char === correctArray[index];
-            
-            return (
-              <span
-                key={index}
-                className={`${isError ? 'text-red-500 bg-red-100 dark:bg-red-900' : ''} ${
-                  isCorrect ? 'text-green-600' : ''
-                }`}
-              >
-                {char}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const renderExplanation = () => {
-    if (!wordInfo) return null;
-
-    return (
-      <div className="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
-        <div className="mb-4">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-            单词解释
-          </h3>
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {wordInfo.word}
-            </span>
-            <span className="text-lg text-gray-600 dark:text-gray-400">
-              {wordInfo.pronunciation}
-            </span>
-          </div>
+      <div className="space-y-4">
+        <div className="relative">
+          <input
+            ref={inputRef}
+            type="text"
+            value={userInput}
+            onChange={handleInputChange}
+            onKeyPress={handleKeyPress}
+            placeholder={practiceMode === 'typing' ? "请输入单词..." : "请根据发音输入单词..."}
+            className="w-full px-4 py-3 text-lg border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            disabled={isLoading}
+          />
         </div>
         
-        <div className="space-y-4">
-          {/* 词性和定义 */}
-          <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <div className="flex items-start gap-3">
-              <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-medium rounded">
-                {wordInfo.partOfSpeech}
-              </span>
-              <p className="text-gray-700 dark:text-gray-300 flex-1">
-                {wordInfo.definition}
-              </p>
-            </div>
+        {validationResult && (
+          <Alert className={validationResult.isCorrect ? 'border-green-200 bg-green-50 dark:bg-green-900/20' : 'border-red-200 bg-red-50 dark:bg-red-900/20'}>
+            {validationResult.isCorrect ? (
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            ) : (
+              <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            )}
+            <AlertDescription className={validationResult.isCorrect ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}>
+              {validationResult.isCorrect ? '正确！' : `错误！正确答案是：${validationResult.correctWord}`}
+            </AlertDescription>
+          </Alert>
+        )}
+      </div>
+    );
+  };
+
+  // 渲染单词解释
+  const renderExplanation = () => {
+    if (!wordInfo || !showExplanation) return null;
+
+    return (
+      <Card className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
+            {wordInfo.word}
+          </CardTitle>
+          <CardDescription className="text-lg text-gray-600 dark:text-gray-400">
+            {wordInfo.pronunciation} {wordInfo.partOfSpeech}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-2">释义：</h4>
+            <p className="text-gray-700 dark:text-gray-300">{wordInfo.definition}</p>
           </div>
-
-          {/* 常考短语 */}
-          {wordInfo.phrases && wordInfo.phrases.length > 0 && (
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-              <h4 className="font-semibold text-green-800 dark:text-green-200 mb-2">
-                📚 常考短语
-              </h4>
-              <div className="space-y-2">
-                {wordInfo.phrases.map((phrase, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                    <span className="text-green-700 dark:text-green-300">{phrase}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 词形转换 */}
+          
           {wordInfo.wordForms && wordInfo.wordForms.length > 0 && (
-            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-              <h4 className="font-semibold text-purple-800 dark:text-purple-200 mb-2">
-                🔄 词形转换
-              </h4>
-              <div className="space-y-2">
+            <div>
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-2">词形转换：</h4>
+              <ul className="list-disc list-inside text-gray-700 dark:text-gray-300 space-y-1">
                 {wordInfo.wordForms.map((form, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                    <span className="text-purple-700 dark:text-purple-300">{form}</span>
-                  </div>
+                  <li key={index}>{form}</li>
                 ))}
-              </div>
+              </ul>
             </div>
           )}
-
-          {/* 例句 */}
+          
+          {wordInfo.phrases && wordInfo.phrases.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-2">常考短语：</h4>
+              <ul className="list-disc list-inside text-gray-700 dark:text-gray-300 space-y-1">
+                {wordInfo.phrases.map((phrase, index) => (
+                  <li key={index}>{phrase}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
           {wordInfo.example && (
-            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-              <h4 className="font-semibold text-orange-800 dark:text-orange-200 mb-2">
-                💡 例句
-              </h4>
-              <p className="text-orange-700 dark:text-orange-300 italic">
-                "{wordInfo.example}"
-              </p>
+            <div>
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-2">举例：</h4>
+              <p className="text-gray-700 dark:text-gray-300 italic">"{wordInfo.example}"</p>
             </div>
           )}
-
-          {/* 来源信息 */}
-          <div className="text-xs text-gray-500 dark:text-gray-400 border-t pt-3">
-            <p>来源: {wordInfo.sourceFile}</p>
-            <p>页码: {wordInfo.pageNumber}</p>
+          
+          <div className="text-xs text-gray-500 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
+            来源：{wordInfo.sourceFile} - 第{wordInfo.pageNumber}页
           </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
+  // 渲染统计信息
+  const renderStatistics = () => {
+    const correctCount = inputHistory.filter(entry => entry.isCorrect).length;
+    const totalCount = inputHistory.length;
+    const accuracy = totalCount > 0 ? (correctCount / totalCount * 100).toFixed(1) : '0.0';
+    
+    return (
+      <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{totalCount}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">总练习次数</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-green-600 dark:text-green-400">{correctCount}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">正确次数</div>
+        </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{accuracy}%</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">正确率</div>
         </div>
       </div>
     );
   };
 
-  const renderStatistics = () => {
-    return (
-      <div className="mt-4 text-center">
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          已完成: {validatedCount} 个单词 | 已输入: {inputHistory.length} 次
-        </p>
-      </div>
-    );
-  };
-
+  // 渲染鼓励信息
   const renderEncouragement = () => {
     if (!showEncouragement) return null;
-
+    
     return (
-      <div className="fixed top-4 right-4 bg-yellow-100 dark:bg-yellow-900 border border-yellow-300 dark:border-yellow-700 rounded-lg p-4 shadow-lg z-50">
-        <p className="text-yellow-800 dark:text-yellow-200 font-medium">
-          {encouragementMessage}
-        </p>
+      <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+        {encouragementMessage}
       </div>
     );
   };
 
+  // 渲染单元选择器
   const renderUnitSelector = () => {
     return (
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          选择学习单元:
-        </label>
-        <select
-          value={selectedFile}
-          onChange={handleFileChange}
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
-        >
-          <option value="all">所有单元</option>
-          {availableFiles.map((file) => (
-            <option key={file} value={file}>
-              {file}
-            </option>
-          ))}
-        </select>
-        
-        {/* 单元进度显示 */}
-        <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <div className="flex justify-between items-center">
-            <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              当前单元: {selectedFile === 'all' ? '所有单元' : selectedFile}
-            </span>
-            <span className="text-sm text-blue-600 dark:text-blue-400">
-              完成进度: {currentUnitCompleted}/{getCurrentUnitTotal()}
-            </span>
-          </div>
-          <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div 
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ 
-                width: `${getCurrentUnitTotal() > 0 ? (currentUnitCompleted / getCurrentUnitTotal()) * 100 : 0}%` 
-              }}
-            ></div>
-          </div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            完成率: {getCurrentUnitTotal() > 0 ? Math.round((currentUnitCompleted / getCurrentUnitTotal()) * 100) : 0}%
-          </div>
-        </div>
+      <div className="mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>选择练习单元</CardTitle>
+            <CardDescription>选择要练习的单词单元</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="file-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  选择单元：
+                </label>
+                <select
+                  id="file-select"
+                  value={selectedFile}
+                  onChange={handleFileChange}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="all">所有单元</option>
+                  {availableFiles.map((file, index) => (
+                    <option key={index} value={file}>
+                      {file}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* 练习模式切换 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  练习模式：
+                </label>
+                <div className="flex space-x-2">
+                  <Button
+                    variant={practiceMode === 'typing' ? 'default' : 'outline'}
+                    onClick={() => setPracticeMode('typing')}
+                    className="flex items-center space-x-2"
+                  >
+                    <Type className="w-4 h-4" />
+                    <span>打字练习</span>
+                  </Button>
+                  <Button
+                    variant={practiceMode === 'dictation' ? 'default' : 'outline'}
+                    onClick={() => setPracticeMode('dictation')}
+                    className="flex items-center space-x-2"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                    <span>听写练习</span>
+                  </Button>
+                </div>
+              </div>
+              
+              {/* 进度条 */}
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>当前单元进度</span>
+                  <span>{currentUnitCompleted} / {getCurrentUnitTotal()}</span>
+                </div>
+                <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{ 
+                      width: `${getCurrentUnitTotal() > 0 ? (currentUnitCompleted / getCurrentUnitTotal()) * 100 : 0}%` 
+                    }}
+                  ></div>
+                </div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  完成率: {getCurrentUnitTotal() > 0 ? Math.round((currentUnitCompleted / getCurrentUnitTotal()) * 100) : 0}%
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   };
 
+  // 渲染当前单词
   const renderCurrentWord = () => {
     if (isLoading) {
       return (
@@ -626,23 +598,46 @@ export default function TypingPracticePage() {
 
     return (
       <div className="text-center">
+        {/* 发音按钮 */}
         <div className="mb-4">
           <button
             onClick={() => speakWord(currentWord)}
             disabled={isSpeaking}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
           >
-            {isSpeaking ? '播放中...' : '🔊 听发音'}
+            {isSpeaking ? '播放中...' : '🔊 重复发音'}
           </button>
         </div>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
-            请输入这个单词:
-          </h2>
-          <p className="text-4xl font-mono text-blue-600 dark:text-blue-400">
-            {currentWord}
-          </p>
-        </div>
+        
+        {/* 根据练习模式显示不同内容 */}
+        {practiceMode === 'typing' ? (
+          // 打字练习模式：显示单词
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+              请输入这个单词:
+            </h2>
+            <p className="text-4xl font-mono text-blue-600 dark:text-blue-400">
+              {currentWord}
+            </p>
+          </div>
+        ) : (
+          // 听写练习模式：显示音标和释义，不显示单词
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-2">
+              请根据发音输入单词:
+            </h2>
+            {currentWordInfo && (
+              <div className="space-y-3">
+                <p className="text-2xl font-mono text-blue-600 dark:text-blue-400">
+                  {currentWordInfo.pronunciation}
+                </p>
+                <p className="text-lg text-gray-600 dark:text-gray-400">
+                  {currentWordInfo.partOfSpeech} {currentWordInfo.definition}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -696,6 +691,9 @@ export default function TypingPracticePage() {
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         输入: <span className={entry.isCorrect ? 'text-green-600' : 'text-red-600'}>{entry.userInput}</span>
                       </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        模式: {entry.mode === 'typing' ? '打字练习' : '听写练习'}
+                      </p>
                     </div>
                     <div className="text-right">
                       <span className={`px-2 py-1 rounded text-xs ${
@@ -718,6 +716,25 @@ export default function TypingPracticePage() {
       </div>
     );
   };
+
+  // 初始化
+  useEffect(() => {
+    fetchAvailableFiles();
+    fetchUnitStats();
+    fetchNewWord();
+  }, []);
+
+  // 当选择文件变化时重新获取单词
+  useEffect(() => {
+    if (availableFiles.length > 0) {
+      fetchNewWord();
+    }
+  }, [selectedFile]);
+
+  // 计算当前单元完成数量
+  useEffect(() => {
+    setCurrentUnitCompleted(calculateCurrentUnitCompleted());
+  }, [inputHistory, selectedFile]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -753,7 +770,7 @@ export default function TypingPracticePage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-center mb-2">初中生英语单词练习</h1>
           <p className="text-center text-gray-600 dark:text-gray-400">
-            通过打字练习提高英语单词记忆
+            通过打字练习和听写练习提高英语单词记忆
           </p>
         </div>
 
@@ -768,7 +785,7 @@ export default function TypingPracticePage() {
             {/* 键盘操作提示 */}
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                💡 <strong>键盘操作提示：</strong> 输入单词后按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 验证，再次按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 进入下一个单词
+                💡 <strong>操作提示：</strong> 发音会自动播放，输入单词后按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 验证，再次按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 进入下一个单词
               </p>
             </div>
             
