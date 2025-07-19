@@ -68,6 +68,8 @@ export default function TypingPracticePage() {
   const [lastValidatedInput, setLastValidatedInput] = useState<string>('')
   const [unitStats, setUnitStats] = useState<{ [key: string]: number }>({})
   const [currentUnitCompleted, setCurrentUnitCompleted] = useState<number>(0)
+  const [message, setMessage] = useState<string>('')
+  const [messageType, setMessageType] = useState<'success' | 'error' | ''>('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const t = translations[language]
@@ -325,6 +327,28 @@ export default function TypingPracticePage() {
     }
   };
 
+  // 禁止复制粘贴
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    // 显示提示信息
+    setMessage('请手动输入单词，不要复制粘贴');
+    setMessageType('error');
+    setTimeout(() => {
+      setMessage('');
+      setMessageType('');
+    }, 2000);
+  };
+
+  // 禁止复制
+  const handleCopy = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+  };
+
+  // 禁止剪切
+  const handleCut = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+  };
+
   // 处理键盘事件
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -391,6 +415,9 @@ export default function TypingPracticePage() {
             value={userInput}
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
+            onPaste={handlePaste}
+            onCopy={handleCopy}
+            onCut={handleCut}
             placeholder={practiceMode === 'typing' ? "请输入单词..." : "请根据发音输入单词..."}
             className="w-full px-4 py-3 text-lg border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
             disabled={isLoading}
@@ -406,6 +433,20 @@ export default function TypingPracticePage() {
             )}
             <AlertDescription className={validationResult.isCorrect ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}>
               {validationResult.isCorrect ? '正确！' : `错误！正确答案是：${validationResult.correctWord}`}
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {/* 复制粘贴提示消息 */}
+        {message && (
+          <Alert className={messageType === 'success' ? 'border-green-200 bg-green-50 dark:bg-green-900/20' : 'border-red-200 bg-red-50 dark:bg-red-900/20'}>
+            {messageType === 'success' ? (
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+            ) : (
+              <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            )}
+            <AlertDescription className={messageType === 'success' ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'}>
+              {message}
             </AlertDescription>
           </Alert>
         )}
@@ -785,7 +826,7 @@ export default function TypingPracticePage() {
             {/* 键盘操作提示 */}
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                💡 <strong>操作提示：</strong> 发音会自动播放，输入单词后按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 验证，再次按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 进入下一个单词
+                💡 <strong>操作提示：</strong> 发音会自动播放，请手动输入单词（禁止复制粘贴），输入后按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 验证，再次按 <kbd className="px-2 py-1 bg-gray-200 dark:bg-gray-700 rounded text-xs">Enter</kbd> 进入下一个单词
               </p>
             </div>
             
