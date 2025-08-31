@@ -13,7 +13,7 @@ export const recordPractice = (
     const existingRecords = JSON.parse(localStorage.getItem(PRACTICE_RECORDS_KEY) || '[]');
     
     const newRecord: PracticeRecord = {
-      id: `record-${Date.now()}`,
+      id: `record-${Math.random().toString(36).substr(2, 9)}`,
       userId,
       username,
       toolType,

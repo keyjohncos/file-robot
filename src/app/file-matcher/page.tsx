@@ -41,13 +41,17 @@ const FILE_TYPES = [
 ]
 
 export default function FileMatcherPage() {
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('file-matcher-language')
-      return (saved as Language) || 'en'
+  const [language, setLanguage] = useState<Language>('en')
+  const [isClient, setIsClient] = useState(false)
+
+  // 使用 useEffect 来处理客户端初始化
+  useEffect(() => {
+    setIsClient(true)
+    const saved = localStorage.getItem('file-matcher-language')
+    if (saved) {
+      setLanguage(saved as Language)
     }
-    return 'en'
-  })
+  }, [])
   
   const [files, setFiles] = useState<FileItem[]>([])
   const [productCodes, setProductCodes] = useState('')
@@ -200,7 +204,7 @@ export default function FileMatcherPage() {
 
   const handleLanguageChange = (newLanguage: Language) => {
     setLanguage(newLanguage)
-    if (typeof window !== 'undefined') {
+    if (isClient) {
       localStorage.setItem('file-matcher-language', newLanguage)
     }
   }

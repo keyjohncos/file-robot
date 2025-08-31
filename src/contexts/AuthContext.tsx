@@ -69,7 +69,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // 如果是新学生用户，创建账户（无需密码）
         if (!form.password) {
           const newStudent: User = {
-            id: `student-${Date.now()}`,
+            id: `student-${Math.random().toString(36).substr(2, 9)}`,
             username: form.username,
             role: 'student',
             createdAt: new Date(),

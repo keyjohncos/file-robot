@@ -49,13 +49,17 @@ export default function TypingPracticePage() {
     return <LoginForm />;
   }
 
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('file-matcher-language')
-      return (saved as Language) || 'en'
+  const [language, setLanguage] = useState<Language>('en')
+  const [isClient, setIsClient] = useState(false)
+
+  // 使用 useEffect 来处理客户端初始化
+  useEffect(() => {
+    setIsClient(true)
+    const saved = localStorage.getItem('file-matcher-language')
+    if (saved) {
+      setLanguage(saved as Language)
     }
-    return 'en'
-  })
+  }, [])
 
   const [practiceMode, setPracticeMode] = useState<PracticeMode>('typing')
   const [currentWord, setCurrentWord] = useState<string>('')
@@ -403,7 +407,9 @@ export default function TypingPracticePage() {
   // 处理语言切换
   const handleLanguageChange = (newLanguage: Language) => {
     setLanguage(newLanguage);
-    localStorage.setItem('file-matcher-language', newLanguage);
+    if (isClient) {
+      localStorage.setItem('file-matcher-language', newLanguage);
+    }
   };
 
   // 下载历史记录

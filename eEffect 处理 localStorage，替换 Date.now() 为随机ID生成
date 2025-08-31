@@ -1,0 +1,246 @@
+[1mdiff --git a/package1.json b/package1.json[m
+[1mdeleted file mode 100644[m
+[1mindex ed9a19c..0000000[m
+[1m--- a/package1.json[m
+[1m+++ /dev/null[m
+[36m@@ -1,47 +0,0 @@[m
+[31m-{[m
+[31m-  "name": "nextjs-shadcn",[m
+[31m-  "version": "0.1.0",[m
+[31m-  "private": true,[m
+[31m-  "scripts": {[m
+[31m-    "dev": "next dev -H 0.0.0.0 --turbopack",[m
+[31m-    "build": "next build",[m
+[31m-    "start": "next start",[m
+[31m-    "lint": "bunx biome lint --write && bunx tsc --noEmit",[m
+[31m-    "format": "bunx biome format --write"[m
+[31m-  },[m
+[31m-  "dependencies": {[m
+[31m-    "@radix-ui/react-alert-dialog": "^1.1.14",[m
+[31m-    "@radix-ui/react-dropdown-menu": "^2.1.15",[m
+[31m-    "@radix-ui/react-label": "^2.1.7",[m
+[31m-    "@radix-ui/react-progress": "^1.1.7",[m
+[31m-    "@radix-ui/react-select": "^2.2.5",[m
+[31m-    "@radix-ui/react-slot": "^1.2.3",[m
+[31m-    "@radix-ui/react-switch": "^1.2.5",[m
+[31m-    "class-variance-authority": "^0.7.1",[m
+[31m-    "clsx": "^2.1.1",[m
+[31m-    "jszip": "^3.10.1",[m
+[31m-    "lucide-react": "^0.475.0",[m
+[31m-    "mammoth": "^1.9.1",[m
+[31m-    "next": "^15.3.2",[m
+[31m-    "next-themes": "^0.4.6",[m
+[31m-    "pdf-parse": "^1.1.1",[m
+[31m-    "react": "^18.3.1",[m
+[31m-    "react-dom": "^18.3.1",[m
+[31m-    "tailwind-merge": "^3.3.0",[m
+[31m-    "tailwindcss-animate": "^1.0.7"[m
+[31m-  },[m
+[31m-  "devDependencies": {[m
+[31m-    "@biomejs/biome": "1.9.4",[m
+[31m-    "@eslint/eslintrc": "^3.3.1",[m
+[31m-    "@types/node": "^20.17.50",[m
+[31m-    "@types/pdf-parse": "^1.1.5",[m
+[31m-    "@types/react": "^18.3.22",[m
+[31m-    "@types/react-dom": "^18.3.7",[m
+[31m-    "bippy": "^0.3.16",[m
+[31m-    "eslint": "^9.27.0",[m
+[31m-    "eslint-config-next": "15.1.7",[m
+[31m-    "postcss": "^8.5.3",[m
+[31m-    "tailwindcss": "^3.4.17",[m
+[31m-    "typescript": "^5.8.3"[m
+[31m-  }[m
+[31m-}[m
+[1mdiff --git a/src/app/file-matcher/page.tsx b/src/app/file-matcher/page.tsx[m
+[1mindex e1056fc..54705b0 100644[m
+[1m--- a/src/app/file-matcher/page.tsx[m
+[1m+++ b/src/app/file-matcher/page.tsx[m
+[36m@@ -41,13 +41,17 @@[m [mconst FILE_TYPES = [[m
+ ][m
+ [m
+ export default function FileMatcherPage() {[m
+[31m-  const [language, setLanguage] = useState<Language>(() => {[m
+[31m-    if (typeof window !== 'undefined') {[m
+[31m-      const saved = localStorage.getItem('file-matcher-language')[m
+[31m-      return (saved as Language) || 'en'[m
+[32m+[m[32m  const [language, setLanguage] = useState<Language>('en')[m
+[32m+[m[32m  const [isClient, setIsClient] = useState(false)[m
+[32m+[m
+[32m+[m[32m  // 使用 useEffect 来处理客户端初始化[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    setIsClient(true)[m
+[32m+[m[32m    const saved = localStorage.getItem('file-matcher-language')[m
+[32m+[m[32m    if (saved) {[m
+[32m+[m[32m      setLanguage(saved as Language)[m
+     }[m
+[31m-    return 'en'[m
+[31m-  })[m
+[32m+[m[32m  }, [])[m
+   [m
+   const [files, setFiles] = useState<FileItem[]>([])[m
+   const [productCodes, setProductCodes] = useState('')[m
+[36m@@ -200,7 +204,7 @@[m [mexport default function FileMatcherPage() {[m
+ [m
+   const handleLanguageChange = (newLanguage: Language) => {[m
+     setLanguage(newLanguage)[m
+[31m-    if (typeof window !== 'undefined') {[m
+[32m+[m[32m    if (isClient) {[m
+       localStorage.setItem('file-matcher-language', newLanguage)[m
+     }[m
+   }[m
+[1mdiff --git a/src/app/page.tsx b/src/app/page.tsx[m
+[1mindex 170aa78..09889ad 100644[m
+[1m--- a/src/app/page.tsx[m
+[1m+++ b/src/app/page.tsx[m
+[36m@@ -1,6 +1,6 @@[m
+ 'use client'[m
+ [m
+[31m-import { useState } from 'react'[m
+[32m+[m[32mimport { useState, useEffect } from 'react'[m
+ import { useAuth } from '@/contexts/AuthContext'[m
+ import { Button } from '@/components/ui/button'[m
+ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'[m
+[36m@@ -12,19 +12,23 @@[m [mimport LoginForm from '@/components/LoginForm'[m
+ [m
+ export default function HomePage() {[m
+   const { user, isLoading } = useAuth()[m
+[31m-  const [language, setLanguage] = useState<Language>(() => {[m
+[31m-    if (typeof window !== 'undefined') {[m
+[31m-      const saved = localStorage.getItem('file-matcher-language')[m
+[31m-      return (saved as Language) || 'en'[m
+[32m+[m[32m  const [language, setLanguage] = useState<Language>('en')[m
+[32m+[m[32m  const [isClient, setIsClient] = useState(false)[m
+[32m+[m
+[32m+[m[32m  // 使用 useEffect 来处理客户端初始化[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    setIsClient(true)[m
+[32m+[m[32m    const saved = localStorage.getItem('file-matcher-language')[m
+[32m+[m[32m    if (saved) {[m
+[32m+[m[32m      setLanguage(saved as Language)[m
+     }[m
+[31m-    return 'en'[m
+[31m-  })[m
+[32m+[m[32m  }, [])[m
+ [m
+   const t = translations[language][m
+ [m
+   const handleLanguageChange = (newLanguage: Language) => {[m
+     setLanguage(newLanguage)[m
+[31m-    if (typeof window !== 'undefined') {[m
+[32m+[m[32m    if (isClient) {[m
+       localStorage.setItem('file-matcher-language', newLanguage)[m
+     }[m
+   }[m
+[1mdiff --git a/src/app/practice-poem/page.tsx b/src/app/practice-poem/page.tsx[m
+[1mindex a5bfcc3..cc95881 100644[m
+[1m--- a/src/app/practice-poem/page.tsx[m
+[1m+++ b/src/app/practice-poem/page.tsx[m
+[36m@@ -20,6 +20,7 @@[m [mexport default function PoemPracticePage() {[m
+   const [practicedPoems, setPracticedPoems] = useState<Set<number>>(new Set());[m
+   const [showResult, setShowResult] = useState(false);[m
+   const [showPinyin, setShowPinyin] = useState(false);[m
+[32m+[m[32m  const [isClient, setIsClient] = useState(false);[m
+ [m
+   // 如果用户未登录，显示登录页面[m
+   if (!user) {[m
+[36m@@ -27,24 +28,29 @@[m [mexport default function PoemPracticePage() {[m
+   }[m
+ [m
+   useEffect(() => {[m
+[32m+[m[32m    setIsClient(true);[m
+     // 加载诗词数据[m
+     fetch('/poems_18.json')[m
+       .then(res => res.json())[m
+       .then(data => {[m
+         setPoems(data);[m
+         // 从localStorage恢复练习进度[m
+[31m-        const saved = localStorage.getItem('poemPracticeProgress');[m
+[31m-        if (saved) {[m
+[31m-          setPracticedPoems(new Set(JSON.parse(saved)));[m
+[32m+[m[32m        if (isClient) {[m
+[32m+[m[32m          const saved = localStorage.getItem('poemPracticeProgress');[m
+[32m+[m[32m          if (saved) {[m
+[32m+[m[32m            setPracticedPoems(new Set(JSON.parse(saved)));[m
+[32m+[m[32m          }[m
+         }[m
+       })[m
+       .catch(err => console.error('加载诗词失败:', err));[m
+[31m-  }, []);[m
+[32m+[m[32m  }, [isClient]);[m
+ [m
+   useEffect(() => {[m
+     // 保存练习进度到localStorage[m
+[31m-    localStorage.setItem('poemPracticeProgress', JSON.stringify([...practicedPoems]));[m
+[31m-  }, [practicedPoems]);[m
+[32m+[m[32m    if (isClient) {[m
+[32m+[m[32m      localStorage.setItem('poemPracticeProgress', JSON.stringify([...practicedPoems]));[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }, [practicedPoems, isClient]);[m
+ [m
+   const currentPoem = poems[currentPoemIndex];[m
+ [m
+[1mdiff --git a/src/app/typing-practice/page.tsx b/src/app/typing-practice/page.tsx[m
+[1mindex 3c786fb..7937da2 100644[m
+[1m--- a/src/app/typing-practice/page.tsx[m
+[1m+++ b/src/app/typing-practice/page.tsx[m
+[36m@@ -49,13 +49,17 @@[m [mexport default function TypingPracticePage() {[m
+     return <LoginForm />;[m
+   }[m
+ [m
+[31m-  const [language, setLanguage] = useState<Language>(() => {[m
+[31m-    if (typeof window !== 'undefined') {[m
+[31m-      const saved = localStorage.getItem('file-matcher-language')[m
+[31m-      return (saved as Language) || 'en'[m
+[32m+[m[32m  const [language, setLanguage] = useState<Language>('en')[m
+[32m+[m[32m  const [isClient, setIsClient] = useState(false)[m
+[32m+[m
+[32m+[m[32m  // 使用 useEffect 来处理客户端初始化[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    setIsClient(true)[m
+[32m+[m[32m    const saved = localStorage.getItem('file-matcher-language')[m
+[32m+[m[32m    if (saved) {[m
+[32m+[m[32m      setLanguage(saved as Language)[m
+     }[m
+[31m-    return 'en'[m
+[31m-  })[m
+[32m+[m[32m  }, [])[m
+ [m
+   const [practiceMode, setPracticeMode] = useState<PracticeMode>('typing')[m
+   const [currentWord, setCurrentWord] = useState<string>('')[m
+[36m@@ -403,7 +407,9 @@[m [mexport default function TypingPracticePage() {[m
+   // 处理语言切换[m
+   const handleLanguageChange = (newLanguage: Language) => {[m
+     setLanguage(newLanguage);[m
+[31m-    localStorage.setItem('file-matcher-language', newLanguage);[m
+[32m+[m[32m    if (isClient) {[m
+[32m+[m[32m      localStorage.setItem('file-matcher-language', newLanguage);[m
+[32m+[m[32m    }[m
+   };[m
+ [m
+   // 下载历史记录[m
+[1mdiff --git a/src/contexts/AuthContext.tsx b/src/contexts/AuthContext.tsx[m
+[1mindex f6edbd9..367a3c7 100644[m
+[1m--- a/src/contexts/AuthContext.tsx[m
+[1m+++ b/src/contexts/AuthContext.tsx[m
+[36m@@ -69,7 +69,7 @@[m [mexport const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {[m
+         // 如果是新学生用户，创建账户（无需密码）[m
+         if (!form.password) {[m
+           const newStudent: User = {[m
+[31m-            id: `student-${Date.now()}`,[m
+[32m+[m[32m            id: `student-${Math.random().toString(36).substr(2, 9)}`,[m
+             username: form.username,[m
+             role: 'student',[m
+             createdAt: new Date(),[m
+[1mdiff --git a/src/lib/practice-records.ts b/src/lib/practice-records.ts[m
+[1mindex e650eeb..0ccfc03 100644[m
+[1m--- a/src/lib/practice-records.ts[m
+[1m+++ b/src/lib/practice-records.ts[m
+[36m@@ -13,7 +13,7 @@[m [mexport const recordPractice = ([m
+     const existingRecords = JSON.parse(localStorage.getItem(PRACTICE_RECORDS_KEY) || '[]');[m
+     [m
+     const newRecord: PracticeRecord = {[m
+[31m-      id: `record-${Date.now()}`,[m
+[32m+[m[32m      id: `record-${Math.random().toString(36).substr(2, 9)}`,[m
+       userId,[m
+       username,[m
+       toolType,[m

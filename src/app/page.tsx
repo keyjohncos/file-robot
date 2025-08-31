@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,19 +12,23 @@ import LoginForm from '@/components/LoginForm'
 
 export default function HomePage() {
   const { user, isLoading } = useAuth()
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('file-matcher-language')
-      return (saved as Language) || 'en'
+  const [language, setLanguage] = useState<Language>('en')
+  const [isClient, setIsClient] = useState(false)
+
+  // 使用 useEffect 来处理客户端初始化
+  useEffect(() => {
+    setIsClient(true)
+    const saved = localStorage.getItem('file-matcher-language')
+    if (saved) {
+      setLanguage(saved as Language)
     }
-    return 'en'
-  })
+  }, [])
 
   const t = translations[language]
 
   const handleLanguageChange = (newLanguage: Language) => {
     setLanguage(newLanguage)
-    if (typeof window !== 'undefined') {
+    if (isClient) {
       localStorage.setItem('file-matcher-language', newLanguage)
     }
   }

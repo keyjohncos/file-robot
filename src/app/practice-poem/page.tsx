@@ -20,6 +20,7 @@ export default function PoemPracticePage() {
   const [practicedPoems, setPracticedPoems] = useState<Set<number>>(new Set());
   const [showResult, setShowResult] = useState(false);
   const [showPinyin, setShowPinyin] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   // 如果用户未登录，显示登录页面
   if (!user) {
@@ -27,24 +28,29 @@ export default function PoemPracticePage() {
   }
 
   useEffect(() => {
+    setIsClient(true);
     // 加载诗词数据
     fetch('/poems_18.json')
       .then(res => res.json())
       .then(data => {
         setPoems(data);
         // 从localStorage恢复练习进度
-        const saved = localStorage.getItem('poemPracticeProgress');
-        if (saved) {
-          setPracticedPoems(new Set(JSON.parse(saved)));
+        if (isClient) {
+          const saved = localStorage.getItem('poemPracticeProgress');
+          if (saved) {
+            setPracticedPoems(new Set(JSON.parse(saved)));
+          }
         }
       })
       .catch(err => console.error('加载诗词失败:', err));
-  }, []);
+  }, [isClient]);
 
   useEffect(() => {
     // 保存练习进度到localStorage
-    localStorage.setItem('poemPracticeProgress', JSON.stringify([...practicedPoems]));
-  }, [practicedPoems]);
+    if (isClient) {
+      localStorage.setItem('poemPracticeProgress', JSON.stringify([...practicedPoems]));
+    }
+  }, [practicedPoems, isClient]);
 
   const currentPoem = poems[currentPoemIndex];
 
