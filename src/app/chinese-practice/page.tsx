@@ -1,10 +1,19 @@
 'use client'
 
+import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import ChineseCharacterPractice from '@/components/ChineseCharacterPractice'
+import LoginForm from '@/components/LoginForm'
 
 export default function ChinesePracticePage() {
+  const { user } = useAuth();
+  
+  // 如果用户未登录，显示登录页面
+  if (!user) {
+    return <LoginForm />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       {/* Header */}

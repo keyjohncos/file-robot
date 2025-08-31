@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import { recordPractice } from '@/lib/practice-records'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -8,6 +10,7 @@ import { AlertCircle, CheckCircle2, ArrowLeft, Download, Eye, Volume2, Type } fr
 import { ThemeToggle } from '@/components/theme-toggle'
 import LanguageToggle from '@/components/language-toggle'
 import { Language, translations } from '@/lib/i18n'
+import LoginForm from '@/components/LoginForm'
 
 interface WordInfo {
   word: string;
@@ -39,6 +42,13 @@ interface InputHistory {
 type PracticeMode = 'typing' | 'dictation';
 
 export default function TypingPracticePage() {
+  const { user } = useAuth();
+  
+  // 如果用户未登录，显示登录页面
+  if (!user) {
+    return <LoginForm />;
+  }
+
   const [language, setLanguage] = useState<Language>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('file-matcher-language')
@@ -251,34 +261,52 @@ export default function TypingPracticePage() {
       
       const data = await response.json();
       
-      if (data.success) {
-        setValidationResult(data);
-        setLastValidatedInput(userInput.trim()); // 记录这次验证的输入
-        
-        // 记录到历史记录
-        const historyEntry: InputHistory = {
-          word: currentWord,
-          userInput: userInput.trim(),
-          isCorrect: data.isCorrect,
-          timestamp: new Date(),
-          mode: practiceMode
-        };
-        setInputHistory(prev => [...prev, historyEntry]);
-        
-        if (data.isCorrect) {
-          setWordInfo(data.wordInfo);
-          setValidatedCount(prev => prev + 1);
-          checkEncouragement(validatedCount + 1);
+              if (data.success) {
+          setValidationResult(data);
+          setLastValidatedInput(userInput.trim()); // 记录这次验证的输入
+          
+          // 记录到历史记录
+          const historyEntry: InputHistory = {
+            word: currentWord,
+            userInput: userInput.trim(),
+            isCorrect: data.isCorrect,
+            timestamp: new Date(),
+            mode: practiceMode
+          };
+          setInputHistory(prev => [...prev, historyEntry]);
+          
+          // 记录练习活动到系统
+          if (user) {
+            recordPractice(
+              user.id,
+              user.username,
+              'english',
+              data.isCorrect ? '英文练习正确' : '英文练习错误',
+              {
+                word: currentWord,
+                userInput: userInput.trim(),
+                correct: data.isCorrect,
+                mode: practiceMode,
+                file: selectedFile,
+                wordInfo: data.wordInfo
+              }
+            );
+          }
+          
+          if (data.isCorrect) {
+            setWordInfo(data.wordInfo);
+            setValidatedCount(prev => prev + 1);
+            checkEncouragement(validatedCount + 1);
+          }
+          
+          // 显示解释
+          setShowExplanation(true);
+          
+          // 2秒后自动进入下一个单词
+          setTimeout(() => {
+            fetchNewWord();
+          }, 2000);
         }
-        
-        // 显示解释
-        setShowExplanation(true);
-        
-        // 2秒后自动进入下一个单词
-        setTimeout(() => {
-          fetchNewWord();
-        }, 2000);
-      }
     } catch (error) {
       console.error('Error validating input:', error);
     }

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { recordPractice } from '@/lib/practice-records';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,6 +20,7 @@ interface ChineseCharacterPracticeProps {
 }
 
 export default function ChineseCharacterPractice({ className = '' }: ChineseCharacterPracticeProps) {
+  const { user } = useAuth();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [currentCharacter, setCurrentCharacter] = useState<Character | null>(null);
   const [usedCharacters, setUsedCharacters] = useState<Set<string>>(new Set());
@@ -121,13 +124,32 @@ export default function ChineseCharacterPractice({ className = '' }: ChineseChar
     
     if (!currentCharacter || !userInput.trim() || isPaused) return;
     
-    if (userInput.trim() === currentCharacter.汉字) {
+    const isCorrect = userInput.trim() === currentCharacter.汉字;
+    
+    if (isCorrect) {
       setCorrectCount(prev => prev + 1);
       setMessage('正确！');
       setMessageType('success');
     } else {
       setMessage(`错误！正确答案是：${currentCharacter.汉字}`);
       setMessageType('error');
+    }
+    
+    // 记录练习活动到系统
+    if (user) {
+      recordPractice(
+        user.id,
+        user.username,
+        'chinese',
+        isCorrect ? '中文练习正确' : '中文练习错误',
+        {
+          character: currentCharacter.汉字,
+          pinyin: currentCharacter.拼音,
+          userInput: userInput.trim(),
+          correct: isCorrect,
+          displayMode
+        }
+      );
     }
     
     setUserInput('');

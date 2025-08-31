@@ -1,14 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { FileSearch, Keyboard, ArrowRight, BookOpen, BookText } from 'lucide-react'
+import { FileSearch, Keyboard, ArrowRight, BookOpen, BookText, Lock } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import LanguageToggle from '@/components/language-toggle'
 import { Language, translations } from '@/lib/i18n'
+import LoginForm from '@/components/LoginForm'
 
 export default function HomePage() {
+  const { user, isLoading } = useAuth()
   const [language, setLanguage] = useState<Language>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('file-matcher-language')
@@ -26,16 +29,40 @@ export default function HomePage() {
     }
   }
 
+  // 显示登录页面，如果用户未登录
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">正在加载...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginForm />
+  }
+
   const navigateToFeature = (feature: string) => {
+    // 文件匹配功能无需登录
     if (feature === 'file-matcher') {
       window.location.href = '/file-matcher'
-    } else if (feature === 'typing-practice') {
-      window.location.href = '/typing-practice'
-    } else if (feature === 'chinese-practice') {
-      window.location.href = '/chinese-practice'
-    } else if (feature === 'practice-poem') {
-      window.location.href = '/practice-poem'
+    } else if (user) {
+      // 其他功能需要登录
+      if (feature === 'typing-practice') {
+        window.location.href = '/typing-practice'
+      } else if (feature === 'chinese-practice') {
+        window.location.href = '/chinese-practice'
+      } else if (feature === 'practice-poem') {
+        window.location.href = '/practice-poem'
+      }
     }
+  }
+
+  const isFeatureLocked = (feature: string) => {
+    return feature !== 'file-matcher' && !user
   }
 
   return (
@@ -115,14 +142,20 @@ export default function HomePage() {
           </Card>
 
           {/* English Practice Feature */}
-          <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer"
+          <Card className={`hover:shadow-lg transition-shadow duration-300 cursor-pointer ${isFeatureLocked('typing-practice') ? 'opacity-60' : ''}`}
                 onClick={() => navigateToFeature('typing-practice')}>
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+              <div className="mx-auto w-16 h-16 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4 relative">
                 <Keyboard className="w-8 h-8 text-green-600 dark:text-green-400" />
+                {isFeatureLocked('typing-practice') && (
+                  <div className="absolute inset-0 bg-gray-500 bg-opacity-50 rounded-full flex items-center justify-center">
+                    <Lock className="w-6 h-6 text-white" />
+                  </div>
+                )}
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
                 English Practice
+                {isFeatureLocked('typing-practice') && <span className="text-red-500 ml-2">🔒</span>}
               </CardTitle>
               <CardDescription className="text-base text-gray-600 dark:text-gray-300">
                 初中生练习打字
@@ -134,24 +167,31 @@ export default function HomePage() {
                 pronunciation support, and detailed word explanations.
               </p>
               <Button 
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                className="w-full bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
                 onClick={() => navigateToFeature('typing-practice')}
+                disabled={isFeatureLocked('typing-practice')}
               >
-                Start Learning
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {isFeatureLocked('typing-practice') ? '需要登录' : 'Start Learning'}
+                {!isFeatureLocked('typing-practice') && <ArrowRight className="ml-2 h-4 w-4" />}
               </Button>
             </CardContent>
           </Card>
 
           {/* Chinese Practice Feature */}
-          <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer"
+          <Card className={`hover:shadow-lg transition-shadow duration-300 cursor-pointer ${isFeatureLocked('chinese-practice') ? 'opacity-60' : ''}`}
                 onClick={() => navigateToFeature('chinese-practice')}>
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mb-4">
+              <div className="mx-auto w-16 h-16 bg-orange-100 dark:bg-orange-900 rounded-full flex items-center justify-center mb-4 relative">
                 <BookOpen className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                {isFeatureLocked('chinese-practice') && (
+                  <div className="absolute inset-0 bg-gray-500 bg-opacity-50 rounded-full flex items-center justify-center">
+                    <Lock className="w-6 h-6 text-white" />
+                  </div>
+                )}
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
                 Chinese Practice
+                {isFeatureLocked('chinese-practice') && <span className="text-red-500 ml-2">🔒</span>}
               </CardTitle>
               <CardDescription className="text-base text-gray-600 dark:text-gray-300">
                 汉字练习
@@ -163,24 +203,31 @@ export default function HomePage() {
                 random character selection, and progress tracking.
               </p>
               <Button 
-                className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50"
                 onClick={() => navigateToFeature('chinese-practice')}
+                disabled={isFeatureLocked('chinese-practice')}
               >
-                Start Practice
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {isFeatureLocked('chinese-practice') ? '需要登录' : 'Start Practice'}
+                {!isFeatureLocked('chinese-practice') && <ArrowRight className="ml-2 h-4 w-4" />}
               </Button>
             </CardContent>
           </Card>
 
           {/* Poem Practice Feature */}
-          <Card className="hover:shadow-lg transition-shadow duration-300 cursor-pointer"
+          <Card className={`hover:shadow-lg transition-shadow duration-300 cursor-pointer ${isFeatureLocked('practice-poem') ? 'opacity-60' : ''}`}
                 onClick={() => navigateToFeature('practice-poem')}>
             <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mb-4">
+              <div className="mx-auto w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center mb-4 relative">
                 <BookText className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                {isFeatureLocked('practice-poem') && (
+                  <div className="absolute inset-0 bg-gray-500 bg-opacity-50 rounded-full flex items-center justify-center">
+                    <Lock className="w-6 h-6 text-white" />
+                  </div>
+                )}
               </div>
               <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">
                 Poem Practice
+                {isFeatureLocked('practice-poem') && <span className="text-red-500 ml-2">🔒</span>}
               </CardTitle>
               <CardDescription className="text-base text-gray-600 dark:text-gray-300">
                 诗词练习
@@ -192,11 +239,12 @@ export default function HomePage() {
                 progress tracking, and comprehensive learning features.
               </p>
               <Button 
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                className="w-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50"
                 onClick={() => navigateToFeature('practice-poem')}
+                disabled={isFeatureLocked('practice-poem')}
               >
-                Start Practice
-                <ArrowRight className="ml-2 h-4 w-4" />
+                {isFeatureLocked('practice-poem') ? '需要登录' : 'Start Practice'}
+                {!isFeatureLocked('practice-poem') && <ArrowRight className="ml-2 h-4 w-4" />}
               </Button>
             </CardContent>
           </Card>

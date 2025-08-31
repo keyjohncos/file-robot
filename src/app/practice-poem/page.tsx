@@ -1,9 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { recordPractice } from '@/lib/practice-records';
 import type { Poem } from '@/types/poem';
+import LoginForm from '@/components/LoginForm';
 
 export default function PoemPracticePage() {
+  const { user } = useAuth();
   const [poems, setPoems] = useState<Poem[]>([]);
   const [currentPoemIndex, setCurrentPoemIndex] = useState(0);
   const [userInput, setUserInput] = useState({
@@ -16,6 +20,11 @@ export default function PoemPracticePage() {
   const [practicedPoems, setPracticedPoems] = useState<Set<number>>(new Set());
   const [showResult, setShowResult] = useState(false);
   const [showPinyin, setShowPinyin] = useState(false);
+
+  // 如果用户未登录，显示登录页面
+  if (!user) {
+    return <LoginForm />;
+  }
 
   useEffect(() => {
     // 加载诗词数据
@@ -44,7 +53,7 @@ export default function PoemPracticePage() {
   };
 
   const handleSubmit = () => {
-    if (!currentPoem) return;
+    if (!currentPoem || !user) return;
 
     const titleCorrect = userInput.title.trim() === currentPoem.诗名;
     const authorCorrect = userInput.author.trim() === currentPoem.作者;
@@ -55,6 +64,20 @@ export default function PoemPracticePage() {
     setIsCorrect(allCorrect);
     setIsSubmitted(true);
     setShowResult(true);
+
+    // 记录练习活动
+    recordPractice(
+      user.id,
+      user.username,
+      'poem',
+      allCorrect ? '诗词练习正确' : '诗词练习错误',
+      {
+        poem: currentPoem.诗名,
+        author: currentPoem.作者,
+        correct: allCorrect,
+        userInput,
+      }
+    );
 
     if (allCorrect) {
       setPracticedPoems(prev => new Set([...prev, currentPoemIndex]));
@@ -143,124 +166,212 @@ export default function PoemPracticePage() {
           </div>
         </div>
 
-        {/* 诗词显示区域 */}
-        <div className="bg-white rounded-lg p-6 shadow-md mb-6">
-          <div className="text-center">
-            <div className="flex justify-center items-center gap-4 mb-4">
-              <h2 className="text-2xl font-bold text-gray-800">{currentPoem.诗名}</h2>
-              <button
-                onClick={togglePinyin}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 ${
-                  showPinyin 
-                    ? 'bg-green-100 text-green-700 border border-green-300' 
-                    : 'bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200'
-                }`}
-              >
-                {showPinyin ? '隐藏拼音' : '显示拼音'}
-              </button>
-            </div>
-            
-            {showPinyin && (
-              <p className="text-lg text-green-600 mb-2 font-medium">{currentPoem.拼音}</p>
-            )}
-            
-            <p className="text-lg text-gray-600 mb-4">
-              作者：{currentPoem.作者}
-              {showPinyin && (
-                <span className="text-green-600 ml-2">({currentPoem.作者拼音})</span>
-              )}
-            </p>
-            
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-gray-700 whitespace-pre-line leading-relaxed">
-                {currentPoem.内容}
-              </p>
-              {showPinyin && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <p className="text-green-600 text-sm whitespace-pre-line leading-relaxed">
-                    {currentPoem.内容拼音}
-                  </p>
+        {/* 诗词显示区域和练习输入区域 */}
+        {showPinyin ? (
+          // 左右布局：显示拼音后使用左右结构
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* 左侧：诗词显示区域 */}
+            <div className="bg-white rounded-lg p-6 shadow-md">
+              <div className="text-center">
+                <div className="flex justify-center items-center gap-4 mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">{currentPoem.诗名}</h2>
+                  <button
+                    onClick={togglePinyin}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 ${
+                      showPinyin 
+                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                        : 'bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200'
+                    }`}
+                  >
+                    {showPinyin ? '隐藏拼音' : '显示拼音'}
+                  </button>
                 </div>
-              )}
+                
+                <p className="text-lg text-green-600 mb-2 font-medium">{currentPoem.拼音}</p>
+                
+                <p className="text-lg text-gray-600 mb-4">
+                  作者：{currentPoem.作者}
+                  <span className="text-green-600 ml-2">({currentPoem.作者拼音})</span>
+                </p>
+                
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                    {currentPoem.内容}
+                  </p>
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <p className="text-green-600 text-sm whitespace-pre-line leading-relaxed">
+                      {currentPoem.内容拼音}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* 练习输入区域 */}
-        <div className="bg-white rounded-lg p-6 shadow-md mb-6">
-          <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">请练习背诵这首诗</h3>
-          <p className="text-center text-sm text-gray-600 mb-4">⚠️ 为了确保练习效果，输入框已禁用复制粘贴功能</p>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">诗名</label>
-              <input
-                type="text"
-                value={userInput.title}
-                onChange={(e) => handleInputChange('title', e.target.value)}
-                onCopy={(e) => e.preventDefault()}
-                onPaste={(e) => e.preventDefault()}
-                onCut={(e) => e.preventDefault()}
-                onContextMenu={(e) => e.preventDefault()}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="请输入诗名"
-              />
-              {showPinyin && (
-                <p className="text-sm text-green-600 mt-1">拼音提示：{currentPoem.拼音}</p>
-              )}
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">作者</label>
-              <input
-                type="text"
-                value={userInput.author}
-                onChange={(e) => handleInputChange('author', e.target.value)}
-                onCopy={(e) => e.preventDefault()}
-                onPaste={(e) => e.preventDefault()}
-                onCut={(e) => e.preventDefault()}
-                onContextMenu={(e) => e.preventDefault()}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="请输入作者"
-              />
-              {showPinyin && (
-                <p className="text-sm text-green-600 mt-1">拼音提示：{currentPoem.作者拼音}</p>
-              )}
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">诗的内容</label>
-              <textarea
-                value={userInput.content}
-                onChange={(e) => handleInputChange('content', e.target.value)}
-                onCopy={(e) => e.preventDefault()}
-                onPaste={(e) => e.preventDefault()}
-                onCut={(e) => e.preventDefault()}
-                onContextMenu={(e) => e.preventDefault()}
-                rows={4}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                placeholder="请输入诗的内容"
-              />
-              {showPinyin && (
-                <div className="mt-1">
-                  <p className="text-sm text-green-600">拼音提示：</p>
-                  <p className="text-xs text-green-500 bg-green-50 p-2 rounded border">
-                    {currentPoem.内容拼音}
-                  </p>
+            {/* 右侧：练习输入区域 */}
+            <div className="bg-white rounded-lg p-6 shadow-md">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">请练习背诵这首诗</h3>
+              <p className="text-center text-sm text-gray-600 mb-4">⚠️ 为了确保练习效果，输入框已禁用复制粘贴功能</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">诗名</label>
+                  <input
+                    type="text"
+                    value={userInput.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    onCopy={(e) => e.preventDefault()}
+                    onPaste={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="请输入诗名"
+                  />
+                  <p className="text-sm text-green-600 mt-1">拼音提示：{currentPoem.拼音}</p>
                 </div>
-              )}
-            </div>
-            
-            <div className="text-center">
-              <button
-                onClick={handleSubmit}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-md transition-colors duration-200"
-              >
-                提交答案
-              </button>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">作者</label>
+                  <input
+                    type="text"
+                    value={userInput.author}
+                    onChange={(e) => handleInputChange('author', e.target.value)}
+                    onCopy={(e) => e.preventDefault()}
+                    onPaste={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="请输入作者"
+                  />
+                  <p className="text-sm text-green-600 mt-1">拼音提示：{currentPoem.作者拼音}</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">诗的内容</label>
+                  <textarea
+                    value={userInput.content}
+                    onChange={(e) => handleInputChange('content', e.target.value)}
+                    onCopy={(e) => e.preventDefault()}
+                    onPaste={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                    placeholder="请输入诗的内容"
+                  />
+                  <div className="mt-1">
+                    <p className="text-sm text-green-600">拼音提示：</p>
+                    <p className="text-xs text-green-500 bg-green-50 p-2 rounded border">
+                      {currentPoem.内容拼音}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="text-center">
+                  <button
+                    onClick={handleSubmit}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-md transition-colors duration-200"
+                  >
+                    提交答案
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          // 默认布局：未显示拼音时使用垂直布局
+          <>
+            {/* 诗词显示区域 */}
+            <div className="bg-white rounded-lg p-6 shadow-md mb-6">
+              <div className="text-center">
+                <div className="flex justify-center items-center gap-4 mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">{currentPoem.诗名}</h2>
+                  <button
+                    onClick={togglePinyin}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 ${
+                      showPinyin 
+                        ? 'bg-green-100 text-green-700 border border-green-300' 
+                        : 'bg-blue-100 text-blue-700 border border-blue-300 hover:bg-blue-200'
+                    }`}
+                  >
+                    {showPinyin ? '隐藏拼音' : '显示拼音'}
+                  </button>
+                </div>
+                
+                <p className="text-lg text-gray-600 mb-4">
+                  作者：{currentPoem.作者}
+                </p>
+                
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                    {currentPoem.内容}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 练习输入区域 */}
+            <div className="bg-white rounded-lg p-6 shadow-md mb-6">
+              <h3 className="text-xl font-semibold text-gray-800 mb-4 text-center">请练习背诵这首诗</h3>
+              <p className="text-center text-sm text-gray-600 mb-4">⚠️ 为了确保练习效果，输入框已禁用复制粘贴功能</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">诗名</label>
+                  <input
+                    type="text"
+                    value={userInput.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
+                    onCopy={(e) => e.preventDefault()}
+                    onPaste={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="请输入诗名"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">作者</label>
+                  <input
+                    type="text"
+                    value={userInput.author}
+                    onChange={(e) => handleInputChange('author', e.target.value)}
+                    onCopy={(e) => e.preventDefault()}
+                    onPaste={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="请输入作者"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">诗的内容</label>
+                  <textarea
+                    value={userInput.content}
+                    onChange={(e) => handleInputChange('content', e.target.value)}
+                    onCopy={(e) => e.preventDefault()}
+                    onPaste={(e) => e.preventDefault()}
+                    onCut={(e) => e.preventDefault()}
+                    onContextMenu={(e) => e.preventDefault()}
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                    placeholder="请输入诗的内容"
+                  />
+                </div>
+                
+                <div className="text-center">
+                  <button
+                    onClick={handleSubmit}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-6 rounded-md transition-colors duration-200"
+                  >
+                    提交答案
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* 结果显示 */}
         {showResult && (
